@@ -52,11 +52,14 @@ import com.graphhopper.storage.index.LocationIndexTree;
 import com.graphhopper.util.*;
 import com.graphhopper.util.Parameters.Landmark;
 import com.graphhopper.util.Parameters.Routing;
+import com.graphhopper.util.details.DistanceDetails;
 import com.graphhopper.util.details.PathDetailsBuilderFactory;
+import org.locationtech.jts.algorithm.Distance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -135,6 +138,15 @@ public class GraphHopper {
 
     private String dateRangeParserString = "";
     private String encodedValuesString = "";
+
+    // cuvature exporter
+    private static final String OUTPUT_FILE_NAME = "edges_curvature.json";
+    private static final int CURVATURE_SCORE_THRESHOLD = 99;
+    private static final double MAX_CURVATURE_THRESHOLD = 0.76; // New threshold for curvature
+    private static final double MIN_DISTANCE_THRESHOLD = 150.0;
+    private static final Set<RoadClass> ALLOWED_ROAD_CLASSES = EnumSet.of(
+            RoadClass.TRUNK, RoadClass.PRIMARY, RoadClass.SECONDARY, RoadClass.TERTIARY
+    );
 
     public GraphHopper setEncodedValuesString(String encodedValuesString) {
         this.encodedValuesString = encodedValuesString;
@@ -771,6 +783,7 @@ public class GraphHopper {
         } else {
             printInfo();
         }
+        curvatureExporter(baseGraph, encodingManager);
         return this;
     }
 
@@ -830,6 +843,167 @@ public class GraphHopper {
                 lock.release();
         }
     }
+
+    protected void curvatureExporter(BaseGraph baseGraph, EncodingManager encodingManager) {
+        logger.info("==== Storing best curvature edges in {} ====", ghLocation);
+
+        if (encodingManager == null) {
+            logger.error("EncodingManager is null. Cannot retrieve EncodedValues.");
+            return;
+        }
+
+        IntEncodedValue curvatureScoreEV = encodingManager.getIntEncodedValue(CurvatureScore.KEY);
+        DecimalEncodedValue curvatureEV = encodingManager.getDecimalEncodedValue(Curvature.KEY);
+        DecimalEncodedValue minCurvatureAngleEV = encodingManager.getDecimalEncodedValue(MinCurvatureAngle.KEY);
+
+        BooleanEncodedValue carAccessEV = encodingManager.getBooleanEncodedValue(VehicleAccess.key("car"));
+        EnumEncodedValue<RoadClass> roadClassEV = encodingManager.getEnumEncodedValue(RoadClass.KEY, RoadClass.class);
+        // Assuming Roundabout.KEY is a valid static final String like "roundabout" or from a class like com.graphhopper.routing.ev.Roundabout.KEY
+        BooleanEncodedValue roundaboutEV = encodingManager.getBooleanEncodedValue(Roundabout.KEY);
+
+        // --- VERIFY EncodedValues were found ---
+        if (curvatureScoreEV == null) {
+            logger.error("EncodedValue for '{}' not found. Curvature score filter will not be applied.", CurvatureScore.KEY);
+            // Consider returning if this is critical
+        }
+        if (curvatureEV == null) {
+            logger.error("EncodedValue for '{}' not found. Curvature filter will not be applied.", Curvature.KEY);
+            // Consider returning if this is critical
+        }
+        if (minCurvatureAngleEV == null) {
+            logger.error("EncodedValue for '{}' not found.", MinCurvatureAngle.KEY);
+        }
+        if (carAccessEV == null) {
+            logger.warn("EncodedValue for car access ('{}') not found. Car access filter will not be applied.", VehicleAccess.key("car"));
+        }
+        if (roadClassEV == null) {
+            logger.warn("EncodedValue for RoadClass ('{}') not found. Road class filter will not be applied.", RoadClass.KEY);
+        }
+        if (roundaboutEV == null) {
+            logger.warn("EncodedValue for roundabout ('{}') not found. Roundabout filter will not be applied.", Roundabout.KEY);
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        NodeAccess nodeAccess = baseGraph.getNodeAccess();
+        List<CurvaturePOJO> edgesToStore = new ArrayList<>();
+
+        AllEdgesIterator iter = baseGraph.getAllEdges();
+        long edgeCount = iter.length(); // Get count before iteration
+        logger.info("Found edges: {}", edgeCount);
+
+        int processedEdges = 0;
+        int matchedEdges = 0;
+
+        while (iter.next()) {
+            processedEdges++;
+
+            // Filter by Curvature Score
+            if (curvatureScoreEV != null) {
+                int curvatureScore = iter.get(curvatureScoreEV);
+                if (curvatureScore <= CURVATURE_SCORE_THRESHOLD) {
+                    continue;
+                }
+            } else {
+                // If curvatureScoreEV is null, decide if you want to skip all edges or log and proceed without this filter
+                // For now, it will proceed if curvatureScoreEV is null (as per earlier null check logic)
+            }
+
+            if(iter.getDistance() <= MIN_DISTANCE_THRESHOLD){
+                continue;
+            }
+
+            // Filter by Car Access
+            if (carAccessEV != null && !iter.get(carAccessEV)) {
+                continue;
+            }
+
+            // Filter by Road Class
+            if (roadClassEV != null && !ALLOWED_ROAD_CLASSES.contains(iter.get(roadClassEV))) {
+                continue;
+            }
+
+            // Filter for Roundabout
+            if (roundaboutEV != null && iter.get(roundaboutEV)) { // Skip if it IS a roundabout
+                continue;
+            }
+
+            // --- ADDED: Filter by Curvature value ---
+            double currentCurvature = -1.0; // Default if EV is null or not set
+            if (curvatureEV != null) {
+                currentCurvature = iter.get(curvatureEV);
+                if (currentCurvature >= MAX_CURVATURE_THRESHOLD) { // Store only if curvature IS SMALLER than 0.86
+                    continue;
+                }
+            } else {
+                // If curvatureEV is null, decide behavior.
+                // Currently, if curvatureEV is null, this filter won't apply and edges might pass.
+                // If curvature must be checked, you might want to 'continue' here or handle it based on requirements.
+            }
+
+
+            // All filters passed, create and store the POJO
+            CurvaturePOJO curvaturePOJO = new CurvaturePOJO();
+            curvaturePOJO.setEdge_id(iter.getEdge());
+            curvaturePOJO.setName(iter.getName());
+
+            // Set values, using defaults or handling if EVs were null
+            if (curvatureEV != null) {
+                curvaturePOJO.setCurvature(currentCurvature); // Use the already fetched currentCurvature
+            }
+            if (curvatureScoreEV != null) {
+                curvaturePOJO.setCurvature_score(iter.get(curvatureScoreEV));
+            }
+            if (minCurvatureAngleEV != null) {
+                curvaturePOJO.setMin_curvature_angle(iter.get(minCurvatureAngleEV));
+            }
+
+
+            int baseNodeId = iter.getBaseNode();
+            curvaturePOJO.setLat(nodeAccess.getLat(baseNodeId));
+            curvaturePOJO.setLon(nodeAccess.getLon(baseNodeId));
+
+            edgesToStore.add(curvaturePOJO);
+            matchedEdges++;
+
+            // Conditional logging for matched edges (can be verbose)
+            if (logger.isInfoEnabled()) { // Check if info logging is enabled to avoid unnecessary string operations
+                try {
+                    // Prepare values for logging
+                    double logCurvatureValue = (curvatureEV != null ? currentCurvature : Double.NaN);
+                    String formattedCurvatureForLog = String.format(Locale.ROOT, "%.4f", logCurvatureValue);
+                    int logScoreValue = (curvatureScoreEV != null ? iter.get(curvatureScoreEV) : -1);
+
+                    String pointParam = String.format(Locale.ROOT, "%.6f,%.6f", curvaturePOJO.getLat(), curvaturePOJO.getLon());
+                    String encodedPointParam = URLEncoder.encode(pointParam, StandardCharsets.UTF_8);
+                    String mapsLink = "http://localhost:8989/maps/?point=" + encodedPointParam;
+
+                    logger.info("Matched Edge ID: {}, Curvature: {}, Curvature Score: {}, Name: '{}',Link: {}",
+                            iter.getEdge(),
+                            formattedCurvatureForLog, // Use the pre-formatted string
+                            logScoreValue,
+                            iter.getName(),
+                            mapsLink);
+
+                } catch (Exception e) {
+                    logger.warn("Error generating log string for edge {}: {}",
+                            (curvaturePOJO != null ? curvaturePOJO.getEdge_id() : "unknown"), // Check if pojo is available
+                            e.getMessage());
+                }
+            }
+        } // End of while loop for iterating edges
+
+        logger.info("Processed {} edges in total. Matched and storing {} edges.", processedEdges, matchedEdges);
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE_NAME, false))) { // Overwrite mode
+            mapper.writerWithDefaultPrettyPrinter().writeValue(writer, edgesToStore);
+            logger.info("Successfully wrote {} edges to {}", edgesToStore.size(), OUTPUT_FILE_NAME);
+        } catch (IOException e) {
+            logger.error("Error writing curvature edges to JSON file: " + e.getMessage(), e);
+        } finally {
+            logger.info("==== Storing best curvature edges done. ====");
+        }
+    }
+
 
     protected void prepareImport() {
         Map<String, PMap> encodedValuesWithProps = parseEncodedValueString(encodedValuesString);

@@ -1,17 +1,19 @@
 package com.graphhopper.routing.ev;
 
+import com.graphhopper.routing.util.MinCurvatureAngleCalculator;
+
 /**
  * Defines the EncodedValue for storing custom curvature.
  * Curvature is stored as a decimal value between 0.0 (sharpest curve) and 1.0 (straight line).
- * This value is calculated by {@link com.graphhopper.routing.util.CustomCurvatureCalculator}.
+ * This value is calculated by {@link MinCurvatureAngleCalculator}.
  *
  * This version uses more bits for increased precision compared to a 4-bit implementation.
  */
-public class CustomCurvature {
+public class MinCurvatureAngle {
     /**
      * The key used to identify this EncodedValue in the graph storage.
      */
-    public static final String KEY = "custom_curvature";
+    public static final String KEY = "min_curvature_angle";
 
     /**
      * Creates a DecimalEncodedValue instance configured for storing curvature with higher precision.

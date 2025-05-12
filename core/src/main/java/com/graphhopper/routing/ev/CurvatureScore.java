@@ -1,15 +1,17 @@
 package com.graphhopper.routing.ev;
 
+import com.graphhopper.routing.util.CurvatureScoreCalculator;
+
 /**
  * Defines an IntEncodedValue for storing a curvature score.
  * A score of 0 represents a straight way, while higher scores indicate
  * increasing levels of curvature or "twistiness", calculated based on the
  * sum of angle deviations per unit distance.
  *
- * Calculated by {@link com.graphhopper.routing.util.CustomCurvatureScoreCalculator}.
+ * Calculated by {@link CurvatureScoreCalculator}.
  */
-public class CustomCurvatureScore {
-    public static final String KEY = "custom_curvature_score";
+public class CurvatureScore {
+    public static final String KEY = "curvature_score";
 
     /**
      * Creates an IntEncodedValue for the curvature score.

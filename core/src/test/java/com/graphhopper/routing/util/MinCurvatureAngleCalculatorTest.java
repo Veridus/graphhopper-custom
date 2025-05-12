@@ -9,11 +9,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class CustomCurvatureCalculatorTest {
+class MinCurvatureAngleCalculatorTest {
 
     private EncodingManager encodingManager;
     private DecimalEncodedValue customCurvatureEnc;
-    private CustomCurvatureCalculator calculator;
+    private MinCurvatureAngleCalculator calculator;
     // Use a constant edgeId for simplicity as ArrayEdgeIntAccess doesn't manage multiple edges
     private static final int TEST_EDGE_ID = 0;
     // Define a tolerance for floating-point comparisons
@@ -22,9 +22,9 @@ class CustomCurvatureCalculatorTest {
     @BeforeEach
     void setUp() {
         // Initialize EncodedValue and Calculator before each test
-        customCurvatureEnc = CustomCurvature.create(); // Assuming CustomCurvature uses 8 bits now
+        customCurvatureEnc = MinCurvatureAngle.create(); // Assuming CustomCurvature uses 8 bits now
         encodingManager = EncodingManager.start().add(customCurvatureEnc).build();
-        calculator = new CustomCurvatureCalculator(customCurvatureEnc);
+        calculator = new MinCurvatureAngleCalculator(customCurvatureEnc);
     }
 
     /**

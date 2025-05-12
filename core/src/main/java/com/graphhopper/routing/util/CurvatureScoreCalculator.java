@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory;
  * Stores the result in an IntEncodedValue. A score of 0 means straight, higher scores
  * indicate more curvature/twistiness.
  */
-public class CustomCurvatureScoreCalculator implements TagParser {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CustomCurvatureScoreCalculator.class);
+public class CurvatureScoreCalculator implements TagParser {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CurvatureScoreCalculator.class);
 
     private final IntEncodedValue curvatureScoreEnc;
     private final int maxScore;
@@ -33,12 +33,12 @@ public class CustomCurvatureScoreCalculator implements TagParser {
      *                      Needs tuning based on expected road types and desired score distribution.
      *                      A higher factor stretches the scores out more. Example: 4000.
      */
-    public CustomCurvatureScoreCalculator(IntEncodedValue scoreEnc, double scalingFactor) {
+    public CurvatureScoreCalculator(IntEncodedValue scoreEnc, double scalingFactor) {
         this.curvatureScoreEnc = scoreEnc;
         // Calculate max storable score based on bits used by the IntEncodedValue
         this.maxScore = scoreEnc.getMaxStorableInt();
         this.scalingFactor = scalingFactor;
-        LOGGER.info("Initialized CustomCurvatureScoreCalculator with maxScore={}, scalingFactor={}", maxScore, scalingFactor);
+        LOGGER.info("Initialized CurvatureScoreCalculator with maxScore={}, scalingFactor={}", maxScore, scalingFactor);
     }
 
     @Override

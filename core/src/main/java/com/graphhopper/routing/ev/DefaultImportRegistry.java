@@ -214,10 +214,10 @@ public class DefaultImportRegistry implements ImportRegistry {
                     (lookup, props) -> new CurvatureCalculator(
                             lookup.getDecimalEncodedValue(Curvature.KEY))
             );
-        else if (CustomCurvature.KEY.equals(name))
-            return ImportUnit.create(name, props -> CustomCurvature.create(), (lookup, props) -> new CustomCurvatureCalculator(lookup.getDecimalEncodedValue(CustomCurvature.KEY)));
-        else if (CustomCurvatureScore.KEY.equals(name))
-            return ImportUnit.create(name, props -> CustomCurvatureScore.create(), (lookup, props) -> new CustomCurvatureScoreCalculator(lookup.getIntEncodedValue(CustomCurvatureScore.KEY), 5000));
+        else if (MinCurvatureAngle.KEY.equals(name))
+            return ImportUnit.create(name, props -> MinCurvatureAngle.create(), (lookup, props) -> new MinCurvatureAngleCalculator(lookup.getDecimalEncodedValue(MinCurvatureAngle.KEY)));
+        else if (CurvatureScore.KEY.equals(name))
+            return ImportUnit.create(name, props -> CurvatureScore.create(), (lookup, props) -> new CurvatureScoreCalculator(lookup.getIntEncodedValue(CurvatureScore.KEY), 5000));
         else if (AverageSlope.KEY.equals(name))
             return ImportUnit.create(name, props -> AverageSlope.create(), null, "slope_calculator");
         else if (MaxSlope.KEY.equals(name))

@@ -14,7 +14,7 @@ import com.graphhopper.util.PointList;
  * The metric is stored in a DecimalEncodedValue. A value of 1.0 represents a straight segment,
  * while smaller values represent sharper curves.
  */
-public class CustomCurvatureCalculator implements TagParser {
+public class MinCurvatureAngleCalculator implements TagParser {
 
     private final DecimalEncodedValue customCurvatureEnc;
     // Use Earth distance calculation
@@ -22,7 +22,7 @@ public class CustomCurvatureCalculator implements TagParser {
     // Minimum distance threshold to consider points distinct for angle calculation (in meters)
     private static final double MIN_DIST_THRESHOLD = 1e-7;
 
-    public CustomCurvatureCalculator(DecimalEncodedValue customCurvatureEnc) {
+    public MinCurvatureAngleCalculator(DecimalEncodedValue customCurvatureEnc) {
         this.customCurvatureEnc = customCurvatureEnc;
     }
 
